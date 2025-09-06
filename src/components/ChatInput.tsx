@@ -1,4 +1,10 @@
-import { FormEvent, useState } from 'react';
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Upload, LinkIcon, Send, FileSpreadsheet } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
 import FileUploadPanel from './FileUploadPanel';
 
 interface ChatInputProps {
@@ -8,21 +14,92 @@ interface ChatInputProps {
   isLoading: boolean;
 }
 
+interface UseAutoResizeTextareaProps {
+  minHeight: number;
+  maxHeight?: number;
+}
+
+function useAutoResizeTextarea({
+  minHeight,
+  maxHeight,
+}: UseAutoResizeTextareaProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = useCallback(
+    (reset?: boolean) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      if (reset) {
+        textarea.style.height = `${minHeight}px`;
+        return;
+      }
+
+      textarea.style.height = `${minHeight}px`;
+      const newHeight = Math.max(
+        minHeight,
+        Math.min(textarea.scrollHeight, maxHeight ?? Number.POSITIVE_INFINITY)
+      );
+
+      textarea.style.height = `${newHeight}px`;
+    },
+    [minHeight, maxHeight]
+  );
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = `${minHeight}px`;
+    }
+  }, [minHeight]);
+
+  useEffect(() => {
+    const handleResize = () => adjustHeight();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [adjustHeight]);
+
+  return { textareaRef, adjustHeight };
+}
+
+const MIN_HEIGHT = 48;
+const MAX_HEIGHT = 164;
+
+const AnimatedPlaceholder = ({ showUpload }: { showUpload: boolean }) => (
+  <AnimatePresence mode="wait">
+    <motion.p
+      key={showUpload ? "upload" : "analyze"}
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -5 }}
+      transition={{ duration: 0.15 }}
+      className="pointer-events-none text-sm absolute text-gray-500 whitespace-nowrap"
+    >
+      {showUpload ? "Upload CSV or LinkedIn..." : "Analyze founder potential..."}
+    </motion.p>
+  </AnimatePresence>
+);
+
 export default function ChatInput({ 
   onSendMessage, 
   onFileUpload = () => {}, 
   onLinkedInSubmit = () => {}, 
   isLoading 
 }: ChatInputProps) {
-  const [input, setInput] = useState('');
+  const [value, setValue] = useState("");
+  const { textareaRef, adjustHeight } = useAutoResizeTextarea({
+    minHeight: MIN_HEIGHT,
+    maxHeight: MAX_HEIGHT,
+  });
+  const [showUpload, setShowUpload] = useState(false);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
   const [activeUploadTab, setActiveUploadTab] = useState<'csv' | 'linkedin'>('csv');
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isLoading) {
-      onSendMessage(input);
-      setInput('');
+  const handleSubmit = () => {
+    if (value.trim() && !isLoading) {
+      onSendMessage(value);
+      setValue("");
+      adjustHeight(true);
     }
   };
 
@@ -43,61 +120,143 @@ export default function ChatInput({
 
   return (
     <>
-      <div className="border-t border-gray-100 bg-white dark:bg-gray-800 py-4 shadow-inner">
-        <div className="max-w-3xl mx-auto px-4">
-          {/* Upload buttons */}
-          <div className="flex justify-center mb-3 space-x-2">
-            <button
-              type="button"
-              onClick={() => openUploadPanel('csv')}
-              disabled={isLoading}
-              className="flex items-center text-sm text-gray-500 hover:text-blue-500 transition-colors px-3 py-1 rounded-md hover:bg-gray-100"
+      <div className="p-6">
+        <div className="relative max-w-2xl border rounded-[22px] border-gray-200/60 p-1 w-full mx-auto shadow-sm bg-white/80 backdrop-blur-sm">
+          <div className="relative rounded-2xl border border-gray-100 bg-transparent flex flex-col">
+            <div
+              className="overflow-y-auto"
+              style={{ maxHeight: `${MAX_HEIGHT}px` }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Upload CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => openUploadPanel('linkedin')}
-              disabled={isLoading}
-              className="flex items-center text-sm text-gray-500 hover:text-blue-500 transition-colors px-3 py-1 rounded-md hover:bg-gray-100"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              LinkedIn Profile
-            </button>
-          </div>
+              <div className="relative">
+                <Textarea
+                  value={value}
+                  placeholder=""
+                  className="w-full rounded-2xl rounded-b-none px-4 py-3 bg-transparent border-none text-gray-900 resize-none focus-visible:ring-0 leading-[1.3] min-h-[48px] placeholder:text-gray-500"
+                  ref={textareaRef}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSubmit();
+                    }
+                  }}
+                  onChange={(e) => {
+                    setValue(e.target.value);
+                    adjustHeight();
+                  }}
+                  disabled={isLoading}
+                />
+                {!value && (
+                  <div className="absolute left-4 top-3 right-16">
+                    <AnimatedPlaceholder showUpload={showUpload} />
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <form onSubmit={handleSubmit} className="relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Enter a founder's name or upload data..."
-              className="w-full p-4 pr-16 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white transition-all duration-300 hover:shadow-md focus:shadow-md"
-              disabled={isLoading}
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={isLoading || !input.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-blue-500 disabled:opacity-50 transition-all duration-300 hover:scale-110"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                strokeWidth={1.5} 
-                stroke="currentColor" 
-                className="w-6 h-6 transition-transform duration-300 hover:translate-x-1"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-              </svg>
-            </button>
-          </form>
+            <div className="h-12 bg-transparent rounded-b-xl">
+              <div className="absolute left-2 bottom-3 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openUploadPanel('csv')}
+                  disabled={isLoading}
+                  className={cn(
+                    "cursor-pointer relative rounded-full p-2 transition-all duration-200",
+                    "bg-gray-100/80 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                  )}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setShowUpload(!showUpload)}
+                  disabled={isLoading}
+                  className={cn(
+                    "rounded-full transition-all flex items-center gap-2 px-2 py-1.5 border h-8 duration-200",
+                    showUpload
+                      ? "bg-blue-50 border-blue-200 text-blue-600"
+                      : "bg-gray-100/80 border-transparent text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                  )}
+                >
+                  <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                    <motion.div
+                      animate={{
+                        rotate: showUpload ? 180 : 0,
+                        scale: showUpload ? 1 : 1,
+                      }}
+                      whileHover={{
+                        rotate: showUpload ? 180 : 0,
+                        scale: 1,
+                        transition: {
+                          type: "spring",
+                          stiffness: 300,
+                          damping: 10,
+                        },
+                      }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 260,
+                        damping: 25,
+                      }}
+                    >
+                      <Upload
+                        className={cn(
+                          "w-4 h-4",
+                          showUpload ? "text-blue-600" : "text-inherit"
+                        )}
+                      />
+                    </motion.div>
+                  </div>
+                  <AnimatePresence>
+                    {showUpload && (
+                      <motion.span
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{
+                          width: "auto",
+                          opacity: 1,
+                        }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-sm overflow-hidden whitespace-nowrap text-blue-600 flex-shrink-0"
+                      >
+                        Upload
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openUploadPanel('linkedin')}
+                  disabled={isLoading}
+                  className={cn(
+                    "cursor-pointer relative rounded-full p-2 transition-all duration-200",
+                    "bg-gray-100/80 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                  )}
+                >
+                  <LinkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="absolute right-3 bottom-3">
+                <motion.button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={isLoading || !value.trim()}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className={cn(
+                    "rounded-full p-2 transition-all duration-200",
+                    value.trim() && !isLoading
+                      ? "bg-blue-500 text-white shadow-md hover:bg-blue-600"
+                      : "bg-gray-100/80 text-gray-400 cursor-not-allowed"
+                  )}
+                >
+                  <Send className="w-4 h-4" />
+                </motion.button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

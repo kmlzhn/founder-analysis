@@ -298,24 +298,24 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
   return (
     <div className="mt-6 space-y-8">
       {/* Score Gauge */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 text-center">
+      <div className="bg-white rounded-lg p-4 shadow-md">
+        <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
           Overall Founder Potential Score
         </h3>
         <div className="relative h-60 w-full">
           <canvas ref={scoreChartRef} />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <span className="text-4xl font-bold text-gray-900 dark:text-gray-100">{score}</span>
-              <span className="text-xl text-gray-500 dark:text-gray-400">/100</span>
+              <span className="text-4xl font-bold text-gray-900">{score}</span>
+              <span className="text-xl text-gray-500">/100</span>
             </div>
           </div>
         </div>
       </div>
       
       {/* Success Probability */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 text-center">
+      <div className="bg-white rounded-lg p-4 shadow-md">
+        <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
           Success Probability
         </h3>
         <div className="h-60 w-full">
@@ -325,26 +325,26 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       
       {/* Strengths and Areas for Growth */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
             Key Strengths
           </h3>
           <ul className="list-disc pl-5 space-y-2">
             {strengths.map((strength, index) => (
-              <li key={index} className="text-gray-700 dark:text-gray-300">
+              <li key={index} className="text-gray-700">
                 {strength}
               </li>
             ))}
           </ul>
         </div>
         
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
             Areas for Growth
           </h3>
           <ul className="list-disc pl-5 space-y-2">
             {areasForGrowth.map((area, index) => (
-              <li key={index} className="text-gray-700 dark:text-gray-300">
+              <li key={index} className="text-gray-700">
                 {area}
               </li>
             ))}
@@ -353,13 +353,13 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       </div>
       
       {/* Recommended Focus Areas */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+      <div className="bg-white rounded-lg p-4 shadow-md">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">
           Recommended Focus Areas
         </h3>
         <ol className="list-decimal pl-5 space-y-2">
           {recommendedFocusAreas.map((area, index) => (
-            <li key={index} className="text-gray-700 dark:text-gray-300">
+            <li key={index} className="text-gray-700">
               {area}
             </li>
           ))}
@@ -368,8 +368,8 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       
       {/* Founder Traits Radar Chart */}
       {founderTraits && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 text-center">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
             Founder Traits Profile
           </h3>
           <div className="h-80 w-full">
@@ -380,8 +380,8 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       
       {/* Skills Distribution Chart */}
       {skills && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 text-center">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
             Skills Distribution
           </h3>
           <div className="h-80 w-full">
@@ -392,8 +392,8 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       
       {/* Career Timeline */}
       {milestones && milestones.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 text-center">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
             Career Timeline
           </h3>
           <div className="h-60 w-full">
@@ -404,39 +404,39 @@ const AnalysisCharts = ({ results }: AnalysisChartsProps) => {
       
       {/* LinkedIn Profile Insights (if available) */}
       {profileInsights && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+        <div className="bg-white rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
             LinkedIn Profile Insights
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {profileInsights.connectionNetwork && (
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">Connection Network</h4>
-                <p className="text-gray-700 dark:text-gray-300">{profileInsights.connectionNetwork}</p>
+                <h4 className="font-medium text-gray-800">Connection Network</h4>
+                <p className="text-gray-700">{profileInsights.connectionNetwork}</p>
               </div>
             )}
             {profileInsights.experience && (
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">Experience</h4>
-                <p className="text-gray-700 dark:text-gray-300">{profileInsights.experience}</p>
+                <h4 className="font-medium text-gray-800">Experience</h4>
+                <p className="text-gray-700">{profileInsights.experience}</p>
               </div>
             )}
             {profileInsights.education && (
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">Education</h4>
-                <p className="text-gray-700 dark:text-gray-300">{profileInsights.education}</p>
+                <h4 className="font-medium text-gray-800">Education</h4>
+                <p className="text-gray-700">{profileInsights.education}</p>
               </div>
             )}
             {profileInsights.recommendations && (
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">Recommendations</h4>
-                <p className="text-gray-700 dark:text-gray-300">{profileInsights.recommendations}</p>
+                <h4 className="font-medium text-gray-800">Recommendations</h4>
+                <p className="text-gray-700">{profileInsights.recommendations}</p>
               </div>
             )}
             {profileInsights.contentEngagement && (
               <div>
-                <h4 className="font-medium text-gray-800 dark:text-gray-200">Content Engagement</h4>
-                <p className="text-gray-700 dark:text-gray-300">{profileInsights.contentEngagement}</p>
+                <h4 className="font-medium text-gray-800">Content Engagement</h4>
+                <p className="text-gray-700">{profileInsights.contentEngagement}</p>
               </div>
             )}
           </div>

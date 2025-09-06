@@ -388,7 +388,7 @@ export default function Home() {
 
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-t-0">
+    <div className="flex flex-col md:flex-row h-screen bg-white text-gray-900">
       {/* Sidebar */}
       <Sidebar
         chats={chats.map(chat => ({
@@ -406,20 +406,22 @@ export default function Home() {
       />
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col md:ml-64">
+      <div className="flex-1 flex flex-col relative">
         {/* Chat container */}
         <ChatContainer
           messages={currentChat?.messages || []}
           isLoading={isLoading}
         />
         
-              {/* Input */}
-      <ChatInput
-        onSendMessage={handleSendMessage}
-        onFileUpload={handleFileUpload}
-        onLinkedInSubmit={handleLinkedInSubmit}
-        isLoading={isLoading}
-      />
+        {/* Input - positioned over content */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            onFileUpload={handleFileUpload}
+            onLinkedInSubmit={handleLinkedInSubmit}
+            isLoading={isLoading}
+          />
+        </div>
       </div>
     </div>
   );

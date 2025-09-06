@@ -1,4 +1,18 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, 
+  MessageSquare, 
+  FileSpreadsheet, 
+  LinkIcon, 
+  User, 
+  Trash2,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Chat {
   id: string;
@@ -24,118 +38,344 @@ export default function Sidebar({
   onNewChat,
   onDeleteChat
 }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+
+  const getIconForSearchType = (searchType?: string) => {
+    switch (searchType) {
+      case 'name':
+        return User;
+      case 'linkedin':
+        return LinkIcon;
+      case 'csv':
+        return FileSpreadsheet;
+      default:
+        return MessageSquare;
+    }
+  };
+
 
   return (
     <>
-      {/* Mobile toggle */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2 bg-white text-gray-800 rounded-md shadow-md transition-all duration-300 hover:shadow-lg"
+      {/* Mobile Header */}
+      <div className="md:hidden h-16 px-4 flex items-center justify-between bg-white/80 backdrop-blur-sm border-b border-gray-200/60">
+        <h1 className="text-lg font-semibold text-gray-900">Founder Analysis</h1>
+        <button
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className="p-2 rounded-lg bg-gray-100/80 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <motion.div
+        className="hidden md:flex h-full bg-white/80 backdrop-blur-sm border-r border-gray-200/60 flex-shrink-0"
+        animate={{
+          width: isOpen ? "300px" : "60px",
+        }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
       >
-        {isOpen ? (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 transition-transform duration-300">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6 transition-transform duration-300">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
-        )}
-      </button>
-      
-      {/* Sidebar */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-gray-50 text-gray-800 border-r border-gray-200 transform transition-all duration-300 ease-in-out z-30 shadow-lg ${
-        isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-      }`}>
-        <div className="p-4 h-full flex flex-col">
-          <button 
-            onClick={onNewChat}
-            className="w-full mb-4 py-3 px-4 border border-gray-200 rounded-md bg-white hover:bg-gray-50 transition-all duration-300 shadow-sm hover:shadow flex items-center justify-center gap-2 text-gray-700"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 transition-transform duration-300 group-hover:scale-110">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            <span className="font-medium">New Chat</span>
-          </button>
-          
-          <div className="overflow-y-auto flex-1">
-            <h2 className="text-sm font-medium text-gray-500 mb-3 ml-1">Recent Chats & Searches</h2>
-            <ul className="space-y-1">
-              {chats.map((chat) => (
-                <li key={chat.id} className="transition-all duration-300 hover:translate-x-1">
+        <div className="flex flex-col h-full w-full">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200/60">
+            <div className="flex items-center justify-between h-8">
+              <motion.h1
+                animate={{
+                  opacity: isOpen ? 1 : 0,
+                }}
+                transition={{ duration: 0.2 }}
+                className="text-lg font-semibold text-gray-900 whitespace-nowrap"
+                style={{ display: isOpen ? "block" : "none" }}
+              >
+                Founder Analysis
+              </motion.h1>
+              
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-1.5 rounded-lg bg-gray-100/80 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-colors flex-shrink-0"
+              >
+                {isOpen ? (
+                  <ChevronLeft className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Chat List */}
+          <div className="flex-1 overflow-hidden p-2">
+            <div className="h-8 flex items-center justify-between mb-3 px-2">
+              <motion.h2
+                animate={{
+                  opacity: isOpen ? 1 : 0,
+                }}
+                transition={{ duration: 0.2 }}
+                className="text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                style={{ display: isOpen ? "block" : "none" }}
+              >
+                Recent Chats
+              </motion.h2>
+              
+              <button
+                onClick={onNewChat}
+                className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center p-1.5 flex-shrink-0"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto flex-1 space-y-1">
+              {chats.map((chat) => {
+                const IconComponent = getIconForSearchType(chat.searchType);
+                
+                return (
                   <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { onSelectChat(chat.id); } }}
+                    key={chat.id}
                     onClick={() => onSelectChat(chat.id)}
-                    className={`w-full text-left px-3 py-2 rounded-md flex items-center gap-2 transition-all duration-300 ${
-                      currentChatId === chat.id ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    {chat.searchType ? (
-                      // Show search-specific icon
-                      chat.searchType === 'name' ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
-                      ) : chat.searchType === 'linkedin' ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      )
-                    ) : (
-                      // Default chat icon
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 flex-shrink-0">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                      </svg>
+                    className={cn(
+                      "flex items-center gap-2 pl-1 pr-2 py-2 rounded-2xl cursor-pointer transition-all group h-12",
+                      currentChatId === chat.id 
+                        ? 'bg-blue-50 border border-blue-200/60' 
+                        : 'hover:bg-gray-100/80 border border-transparent'
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center gap-2">
-                        <div className="flex-1 min-w-0">
-                          <span className="truncate block">{chat.title}</span>
-                        </div>
+                  >
+                    <div className={cn(
+                      "p-2 flex-shrink-0 w-8 h-8 flex items-center justify-center",
+                      currentChatId === chat.id
+                        ? 'text-blue-600'
+                        : 'text-gray-500'
+                    )}>
+                      <IconComponent className="w-4 h-4" />
+                    </div>
+                    
+                    <motion.div
+                      animate={{
+                        display: isOpen ? "flex" : "none",
+                        opacity: isOpen ? 1 : 0,
+                      }}
+                      transition={{ duration: 0.2 }}
+                      className="flex-1 min-w-0 flex items-center justify-between overflow-hidden"
+                    >
+                      <motion.h3
+                        className={cn(
+                          "font-medium truncate text-sm whitespace-pre",
+                          currentChatId === chat.id ? 'text-blue-900' : 'text-gray-900'
+                        )}
+                      >
+                        {chat.title}
+                      </motion.h3>
+                      
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {chat.founderScore && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                          <span className={cn(
+                            "text-xs font-medium px-2 py-1 rounded-full",
+                            currentChatId === chat.id
+                              ? 'bg-blue-200 text-blue-700'
+                              : 'bg-gray-200 text-gray-600'
+                          )}>
                             {chat.founderScore}
                           </span>
                         )}
+                        
                         <button
-                          onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id); }}
-                          className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-red-600 transition-colors"
-                          aria-label="Delete chat"
-                          title="Delete"
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setChatToDelete(chat.id); 
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-400 hover:text-red-500 transition-all"
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-                            <path fillRule="evenodd" d="M16.5 4.5V6h3.75a.75.75 0 010 1.5h-.708l-1.036 12.43A2.25 2.25 0 0116.265 22.5H7.735a2.25 2.25 0 01-2.241-2.57L4.458 7.5H3.75A.75.75 0 013 6h3V4.5A2.25 2.25 0 018.25 2.25h7.5A2.25 2.25 0 0118 4.5zM9 6h6V4.5a.75.75 0 00-.75-.75h-4.5A.75.75 0 009 4.5V6zm-.75 4.5a.75.75 0 011.5 0v6.75a.75.75 0 01-1.5 0v-6.75zm6 0a.75.75 0 011.5 0v6.75a.75.75 0 01-1.5 0v-6.75z" clipRule="evenodd" />
-                          </svg>
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                    </div>
+                    </motion.div>
                   </div>
-                </li>
-              ))}
-              {chats.length === 0 && (
-                <li className="px-3 py-2 text-sm text-gray-500">
-                  No chats yet. Start a new chat!
-                </li>
+                );
+              })}
+              
+              {chats.length === 0 && isOpen && (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-gray-100/80 flex items-center justify-center">
+                    <MessageSquare className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    No chats yet
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Start a new analysis
+                  </p>
+                </div>
               )}
-            </ul>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      </motion.div>
+
+      {/* Mobile Sidebar */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ x: "-100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "-100%", opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed inset-0 bg-white z-50 flex flex-col md:hidden"
+          >
+            <div className="h-16 px-4 flex items-center justify-between border-b border-gray-200/60">
+              <h1 className="text-lg font-semibold text-gray-900">Founder Analysis</h1>
+              <button
+                onClick={() => setIsMobileOpen(false)}
+                className="p-2 rounded-lg bg-gray-100/80 text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden p-4">
+              <button
+                onClick={() => {
+                  onNewChat();
+                  setIsMobileOpen(false);
+                }}
+                className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl transition-colors flex items-center justify-center gap-2 font-medium mb-6"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Analysis</span>
+              </button>
+              
+              <h2 className="text-xs font-medium text-gray-500 mb-3 px-1 uppercase tracking-wide">
+                Recent Chats
+              </h2>
+              
+              <div className="overflow-y-auto space-y-2">
+                {chats.map((chat) => {
+                  const IconComponent = getIconForSearchType(chat.searchType);
+                  
+                  return (
+                    <div
+                      key={chat.id}
+                      onClick={() => {
+                        onSelectChat(chat.id);
+                        setIsMobileOpen(false);
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors group",
+                        currentChatId === chat.id 
+                          ? 'bg-blue-50 border border-blue-200/60' 
+                          : 'hover:bg-gray-100/80 border border-transparent'
+                      )}
+                    >
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        currentChatId === chat.id
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-gray-100/80 text-gray-500'
+                      )}>
+                        <IconComponent className="w-4 h-4" />
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center gap-2">
+                          <h3 className={cn(
+                            "font-medium truncate text-sm",
+                            currentChatId === chat.id ? 'text-blue-900' : 'text-gray-900'
+                          )}>
+                            {chat.title}
+                          </h3>
+                          
+                          {chat.founderScore && (
+                            <span className={cn(
+                              "text-xs font-medium px-2 py-1 rounded-full shrink-0",
+                              currentChatId === chat.id
+                                ? 'bg-blue-200 text-blue-700'
+                                : 'bg-gray-200 text-gray-600'
+                            )}>
+                              {chat.founderScore}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setChatToDelete(chat.id); 
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-opacity"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {isMobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileOpen(false)}
+            className="fixed inset-0 bg-black/20 z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {chatToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            onClick={() => setChatToDelete(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-sm border rounded-[22px] border-gray-200/60 p-1 w-full mx-auto shadow-sm bg-white/80 backdrop-blur-sm"
+            >
+              <div className="relative rounded-2xl border border-gray-100 bg-transparent flex flex-col p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Delete Chat?
+                </h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  This action cannot be undone. The chat will be permanently deleted.
+                </p>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setChatToDelete(null)}
+                    className="flex-1 py-2.5 px-4 bg-gray-100/80 hover:bg-gray-200/80 text-gray-700 rounded-[18px] transition-all duration-200 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      onDeleteChat(chatToDelete);
+                      setChatToDelete(null);
+                    }}
+                    className="flex-1 py-2.5 px-4 bg-red-500 hover:bg-red-600 text-white rounded-[18px] transition-all duration-200 font-medium shadow-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
