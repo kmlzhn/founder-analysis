@@ -1,0 +1,83 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - represents users of the system
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  password      String         // Hashed password
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  profile       Profile?       // One-to-one relation with Profile
+  events        Event[]        // One-to-many relation with Event (created events)
+  registrations Registration[] // One-to-many relation with Registration
+  searches      Search[]       // One-to-many relation with Search
+}
+
+// Profile model - contains detailed information about users for analysis
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedInUrl     String?
+  bio             String?  @db.Text
+  skills          String[] // Array of skills
+  experience      Int?     // Years of experience
+  education       String?
+  achievements    String?  @db.Text
+  founderScore    Int?     // Score calculated based on analysis
+  analysisResults Json?    // Detailed analysis results stored as JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Event model - represents events/meetups
+model Event {
+  id            String         @id @default(cuid())
+  title         String
+  description   String?        @db.Text
+  location      String?
+  startDate     DateTime
+  endDate       DateTime?
+  createdById   String
+  createdBy     User           @relation(fields: [createdById], references: [id])
+  registrations Registration[] // One-to-many relation with Registration
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// Registration model - represents user registrations for events
+model Registration {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status    String   @default("pending") // pending, confirmed, cancelled
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, eventId]) // Prevent duplicate registrations
+}
+
+// Search model - represents search history and analysis results
+model Search {
+  id             String   @id @default(cuid())
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  searchType     String   // 'name', 'linkedin', 'csv'
+  searchQuery    String   // Name, LinkedIn URL, or filename
+  founderScore   Int      // Score from analysis
+  analysisResults Json     // Full analysis results in JSON format
+  createdAt      DateTime @default(now())
+}
