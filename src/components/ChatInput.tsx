@@ -1,17 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Upload, LinkIcon, Send, FileSpreadsheet } from "lucide-react";
+import { motion } from "framer-motion";
+import { Upload, Send, X, FileText, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import FileUploadPanel from './FileUploadPanel';
+import { uploadFiles } from "@/utils/uploadthing";
 
 interface ChatInputProps {
-  onSendMessage: (message: string) => void;
-  onFileUpload?: (file: File) => void;
-  onLinkedInSubmit?: (url: string) => void;
+  onSendMessage: (message: string, fileUrls?: string[]) => void;
   isLoading: boolean;
+}
+
+interface SelectedFile {
+  file: File;
+  name: string;
+  type: string;
 }
 
 interface UseAutoResizeTextareaProps {
@@ -65,64 +69,119 @@ function useAutoResizeTextarea({
 const MIN_HEIGHT = 48;
 const MAX_HEIGHT = 164;
 
-const AnimatedPlaceholder = ({ showUpload }: { showUpload: boolean }) => (
-  <AnimatePresence mode="wait">
-    <motion.p
-      key={showUpload ? "upload" : "analyze"}
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -5 }}
-      transition={{ duration: 0.15 }}
-      className="pointer-events-none text-sm absolute text-gray-500 whitespace-nowrap"
-    >
-      {showUpload ? "Upload CSV or LinkedIn..." : "Analyze founder potential..."}
-    </motion.p>
-  </AnimatePresence>
-);
+// Helper functions
+const getFileIcon = (fileType: string) => {
+  if (fileType.includes('csv') || fileType === 'text/csv') return FileSpreadsheet;
+  if (fileType.includes('excel') || fileType.includes('spreadsheet') || fileType.includes('sheet')) return FileSpreadsheet;
+  if (fileType.includes('text') || fileType === 'text/plain') return FileText;
+  return FileText;
+};
+
+// Note: getFileName will be used when UploadThing integration is added
 
 export default function ChatInput({ 
   onSendMessage, 
-  onFileUpload = () => {}, 
-  onLinkedInSubmit = () => {}, 
   isLoading 
 }: ChatInputProps) {
   const [value, setValue] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: MIN_HEIGHT,
     maxHeight: MAX_HEIGHT,
   });
-  const [showUpload, setShowUpload] = useState(false);
-  const [showUploadPanel, setShowUploadPanel] = useState(false);
-  const [activeUploadTab, setActiveUploadTab] = useState<'csv' | 'linkedin'>('csv');
 
-  const handleSubmit = () => {
-    if (value.trim() && !isLoading) {
-      onSendMessage(value);
+  const handleSubmit = async () => {
+    if ((value.trim() || selectedFiles.length > 0) && !isLoading && !isUploading) {
+      let fileUrls: string[] = [];
+      
+      // Upload files only when sending message
+      if (selectedFiles.length > 0) {
+        setIsUploading(true);
+        try {
+          const files = selectedFiles.map(sf => sf.file);
+          const uploadResults = await uploadFiles("documentUploader", { files });
+          fileUrls = uploadResults.map(file => file.url);
+        } catch (error) {
+          console.error('Upload failed during send:', error);
+          setIsUploading(false);
+          return; // Don't send message if upload fails
+        }
+        setIsUploading(false);
+      }
+      
+      onSendMessage(value, fileUrls);
       setValue("");
+      setSelectedFiles([]);
       adjustHeight(true);
     }
   };
 
-  const handleFileUpload = (file: File) => {
-    onFileUpload(file);
-    setShowUploadPanel(false);
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleLinkedInSubmit = (url: string) => {
-    onLinkedInSubmit(url);
-    setShowUploadPanel(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const triggerUpload = () => {
+    console.log('Triggering file input...');
+    fileInputRef.current?.click();
   };
-  
-  const openUploadPanel = (tab: 'csv' | 'linkedin') => {
-    setActiveUploadTab(tab);
-    setShowUploadPanel(true);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    console.log('Files selected:', files.map(f => f.name));
+
+    // Just store files locally, don't upload yet
+    const newSelectedFiles: SelectedFile[] = files.map(file => ({
+      file,
+      name: file.name,
+      type: file.type
+    }));
+
+    setSelectedFiles(prev => [...prev, ...newSelectedFiles]);
+    
+    // Clear the input
+    e.target.value = '';
   };
+
 
   return (
     <>
       <div className="p-6">
         <div className="relative max-w-2xl border rounded-[22px] border-gray-200/60 p-1 w-full mx-auto shadow-sm bg-white/80 backdrop-blur-sm">
           <div className="relative rounded-2xl border border-gray-100 bg-transparent flex flex-col">
+            {/* File List */}
+            {selectedFiles.length > 0 && (
+              <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50 rounded-t-2xl">
+                <div className="flex flex-wrap gap-2">
+                  {selectedFiles.map((selectedFile, index) => {
+                    const IconComponent = getFileIcon(selectedFile.type);
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
+                      >
+                        <IconComponent className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-700 max-w-[120px] truncate">
+                          {selectedFile.name}
+                        </span>
+                        <button
+                          onClick={() => removeFile(index)}
+                          className="text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            
             <div
               className="overflow-y-auto"
               style={{ maxHeight: `${MAX_HEIGHT}px` }}
@@ -147,7 +206,9 @@ export default function ChatInput({
                 />
                 {!value && (
                   <div className="absolute left-4 top-3 right-16">
-                    <AnimatedPlaceholder showUpload={showUpload} />
+                    <p className="pointer-events-none text-sm text-gray-500 whitespace-nowrap">
+                      Start a conversation...
+                    </p>
                   </div>
                 )}
               </div>
@@ -155,99 +216,63 @@ export default function ChatInput({
 
             <div className="h-12 bg-transparent rounded-b-xl">
               <div className="absolute left-2 bottom-3 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openUploadPanel('csv')}
-                  disabled={isLoading}
-                  className={cn(
-                    "cursor-pointer relative rounded-full p-2 transition-all duration-200",
-                    "bg-gray-100/80 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  )}
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                </button>
-                
-                <button
-                  type="button"
-                  onClick={() => setShowUpload(!showUpload)}
-                  disabled={isLoading}
-                  className={cn(
-                    "rounded-full transition-all flex items-center gap-2 px-2 py-1.5 border h-8 duration-200",
-                    showUpload
-                      ? "bg-blue-50 border-blue-200 text-blue-600"
-                      : "bg-gray-100/80 border-transparent text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  )}
-                >
-                  <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
-                    <motion.div
-                      animate={{
-                        rotate: showUpload ? 180 : 0,
-                        scale: showUpload ? 1 : 1,
-                      }}
-                      whileHover={{
-                        rotate: showUpload ? 180 : 0,
-                        scale: 1,
-                        transition: {
-                          type: "spring",
-                          stiffness: 300,
-                          damping: 10,
-                        },
-                      }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 260,
-                        damping: 25,
-                      }}
-                    >
-                      <Upload
-                        className={cn(
-                          "w-4 h-4",
-                          showUpload ? "text-blue-600" : "text-inherit"
-                        )}
-                      />
-                    </motion.div>
-                  </div>
-                  <AnimatePresence>
-                    {showUpload && (
-                      <motion.span
-                        initial={{ width: 0, opacity: 0 }}
-                        animate={{
-                          width: "auto",
-                          opacity: 1,
-                        }}
-                        exit={{ width: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-sm overflow-hidden whitespace-nowrap text-blue-600 flex-shrink-0"
-                      >
-                        Upload
-                      </motion.span>
+                <div className="relative">
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls,.txt"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  
+                  {/* Custom circular button */}
+                  <button
+                    type="button"
+                    onClick={triggerUpload}
+                    disabled={isLoading || isUploading}
+                    className={cn(
+                      "rounded-full transition-all flex items-center gap-2 px-2 py-1.5 border h-8 duration-200",
+                      isUploading 
+                        ? "bg-blue-50 border-transparent text-blue-600"
+                        : "bg-gray-100/80 border-transparent text-gray-500 hover:text-blue-600 hover:bg-blue-50",
+                      (isLoading || isUploading) && "cursor-not-allowed opacity-50"
                     )}
-                  </AnimatePresence>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openUploadPanel('linkedin')}
-                  disabled={isLoading}
-                  className={cn(
-                    "cursor-pointer relative rounded-full p-2 transition-all duration-200",
-                    "bg-gray-100/80 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  )}
-                >
-                  <LinkIcon className="w-4 h-4" />
-                </button>
+                  >
+                    <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                      <motion.div
+                        whileHover={{
+                          scale: isUploading ? 1 : 1.1,
+                          transition: {
+                            type: "spring",
+                            stiffness: 300,
+                            damping: 10,
+                          },
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 260,
+                          damping: 25,
+                        }}
+                      >
+                        <Upload className="w-4 h-4" />
+                      </motion.div>
+                    </div>
+                  </button>
+                </div>
               </div>
               
               <div className="absolute right-3 bottom-3">
                 <motion.button
                   type="button"
                   onClick={handleSubmit}
-                  disabled={isLoading || !value.trim()}
+                  disabled={isLoading || isUploading || (!value.trim() && selectedFiles.length === 0)}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   className={cn(
                     "rounded-full p-2 transition-all duration-200",
-                    value.trim() && !isLoading
+                    (value.trim() || selectedFiles.length > 0) && !isLoading && !isUploading
                       ? "bg-blue-500 text-white shadow-md hover:bg-blue-600"
                       : "bg-gray-100/80 text-gray-400 cursor-not-allowed"
                   )}
@@ -259,15 +284,6 @@ export default function ChatInput({
           </div>
         </div>
       </div>
-
-      {/* File Upload Panel */}
-      <FileUploadPanel
-        isVisible={showUploadPanel}
-        onClose={() => setShowUploadPanel(false)}
-        onFileUpload={handleFileUpload}
-        onLinkedInSubmit={handleLinkedInSubmit}
-        activeTab={activeUploadTab}
-      />
     </>
   );
 }

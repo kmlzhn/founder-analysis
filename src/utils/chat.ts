@@ -7,42 +7,76 @@ export function generateId(): string {
 
 // Create a new chat
 export function createNewChat(): Chat {
+  const now = new Date().toISOString();
   return {
     id: generateId(),
     title: 'New Analysis',
     messages: [],
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
 // Create a new message
-export function createMessage(role: 'user' | 'assistant', content: string): Message {
+export function createMessage(role: 'USER' | 'ASSISTANT', content: string): Message {
   return {
     id: generateId(),
     role,
     content,
+    createdAt: new Date().toISOString(),
   };
 }
 
-// Save chats to localStorage
-export function saveChatsToLocalStorage(chats: Chat[]): void {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('founder-analysis-chats', JSON.stringify(chats));
-  }
-}
+// localStorage functions removed - now using API persistence
 
-// Load chats from localStorage
-export function loadChatsFromLocalStorage(): Chat[] {
-  if (typeof window !== 'undefined') {
-    const savedChats = localStorage.getItem('founder-analysis-chats');
-    if (savedChats) {
-      return JSON.parse(savedChats);
+// AI-powered smart title generation (via API)
+export async function generateSmartTitle(message: string): Promise<string> {
+  try {
+    const response = await fetch('/api/ai/generate-title', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API failed: ${response.statusText}`);
     }
+
+    const { title } = await response.json();
+    return title || extractTitleFromMessage(message); // Fallback
+  } catch (error) {
+    console.warn('AI title generation failed:', error);
+    return extractTitleFromMessage(message); // Fallback
   }
-  return [];
 }
 
-// Extract a title from the first user message
+// AI-powered user intent detection (via API)
+export async function detectUserIntent(message: string): Promise<string> {
+  try {
+    const response = await fetch('/api/ai/detect-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API failed: ${response.statusText}`);
+    }
+
+    const { intent } = await response.json();
+    return intent || 'general_chat'; // Fallback
+  } catch (error) {
+    console.warn('AI intent detection failed:', error);
+    // Fallback to simple detection
+    const content = message.toLowerCase();
+    if (content.includes('analyze') || content.includes('linkedin.com') || content.includes('founder')) {
+      return 'founder_analysis';
+    }
+    return 'general_chat';
+  }
+}
+
+// Extract a title from the first user message (fallback function)
 export function extractTitleFromMessage(message: string): string {
   // If the message is a name (less than 30 chars), use it as the title
   if (message.length < 30) {

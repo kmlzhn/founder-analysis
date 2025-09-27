@@ -20,7 +20,7 @@ export default function ChatContainer({ messages, isLoading }: ChatContainerProp
         <div className="h-full flex flex-col items-center justify-center text-center px-4">
           <div className="max-w-md">
             <p className="text-lg text-gray-500 mb-6">
-              Enter a person&apos;s name to analyze their potential as a founder of a great startup.
+              Welcome to Founder Analysis! Start a conversation to begin.
             </p>
           </div>
         </div>

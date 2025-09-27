@@ -10,74 +10,145 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model - represents users of the system
+// User model - simplified for authentication
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  name          String?
-  password      String         // Hashed password
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  profile       Profile?       // One-to-one relation with Profile
-  events        Event[]        // One-to-many relation with Event (created events)
-  registrations Registration[] // One-to-many relation with Registration
-  searches      Search[]       // One-to-many relation with Search
-}
-
-// Profile model - contains detailed information about users for analysis
-model Profile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedInUrl     String?
-  bio             String?  @db.Text
-  skills          String[] // Array of skills
-  experience      Int?     // Years of experience
-  education       String?
-  achievements    String?  @db.Text
-  founderScore    Int?     // Score calculated based on analysis
-  analysisResults Json?    // Detailed analysis results stored as JSON
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-}
-
-// Event model - represents events/meetups
-model Event {
-  id            String         @id @default(cuid())
-  title         String
-  description   String?        @db.Text
-  location      String?
-  startDate     DateTime
-  endDate       DateTime?
-  createdById   String
-  createdBy     User           @relation(fields: [createdById], references: [id])
-  registrations Registration[] // One-to-many relation with Registration
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-}
-
-// Registration model - represents user registrations for events
-model Registration {
   id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  eventId   String
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  status    String   @default("pending") // pending, confirmed, cancelled
+  email     String   @unique
+  name      String?
+  password  String   // Hashed password
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([userId, eventId]) // Prevent duplicate registrations
+  
+  // Relations
+  chats     Chat[]
 }
 
-// Search model - represents search history and analysis results
-model Search {
-  id             String   @id @default(cuid())
-  userId         String?
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  searchType     String   // 'name', 'linkedin', 'csv'
-  searchQuery    String   // Name, LinkedIn URL, or filename
-  founderScore   Int      // Score from analysis
-  analysisResults Json     // Full analysis results in JSON format
-  createdAt      DateTime @default(now())
+// Chat model - represents conversation sessions
+model Chat {
+  id        String   @id @default(cuid())
+  userId    String?  // Optional for anonymous users
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  messages    Message[]
+  dataSources DataSource[]
+  analyses    Analysis[]
+}
+
+// Message model - chat messages
+model Message {
+  id        String      @id @default(cuid())
+  chatId    String
+  chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  content   String      @db.Text
+  createdAt DateTime    @default(now())
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+// DataSource model - input sources (URLs, files)
+model DataSource {
+  id           String         @id @default(cuid())
+  chatId       String
+  chat         Chat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  type         DataSourceType
+  source       String         // URL or file path/key
+  status       ProcessStatus  @default(PENDING)
+  rawData      Json?          // Scraped/parsed data
+  errorMessage String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  // Relations
+  profiles Profile[]
+}
+
+enum DataSourceType {
+  LINKEDIN_URL
+  TWITTER_URL
+  CSV_FILE
+  EXCEL_FILE
+}
+
+enum ProcessStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// Profile model - extracted profile data
+model Profile {
+  id           String     @id @default(cuid())
+  dataSourceId String
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  
+  // Basic Info
+  name         String?
+  email        String?
+  linkedinUrl  String?
+  twitterUrl   String?
+  
+  // Profile Data (flexible JSON storage)
+  profileData  Json       // Raw scraped data
+  
+  // Relations
+  analyses     Analysis[]
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// Analysis model - AI analysis results
+model Analysis {
+  id              String       @id @default(cuid())
+  chatId          String
+  chat            Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  profileId       String?      // Optional - for single profile analysis
+  profile         Profile?     @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  
+  // Analysis Details
+  type            AnalysisType
+  provider        String       // 'claude', 'perplexity'
+  
+  // Results
+  overallScore    Int?         // 1-100
+  summary         String       @db.Text
+  strengths       String[]     // Array of strengths
+  weaknesses      String[]     // Array of areas for improvement
+  suggestions     String[]     // Array of suggestions
+  
+  // Multiple Profiles Support
+  isMultiProfile     Boolean   @default(false)
+  totalProfiles      Int?      // Total profiles analyzed
+  averageScore       Int?      // Average score across all profiles
+  profileAnalyses    Json?     // Array of individual profile analyses
+  
+  // Enhanced Processing Info
+  linkedInUrlsFound  Int?      @default(0)
+  filesProcessed     Int?      @default(0)
+  profilesAnalyzed   Int?      @default(1)
+  perplexityEnhanced Boolean   @default(false)
+  analysisContext    String?   @db.Text
+  profileSource      String?   // 'provided' | 'scraped'
+  
+  // Detailed Results
+  detailedResults Json         // Full analysis results
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+enum AnalysisType {
+  FOUNDER_POTENTIAL
+  BATCH_ANALYSIS
+  COMPARISON
+  CUSTOM
 }

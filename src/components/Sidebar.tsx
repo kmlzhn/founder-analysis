@@ -3,25 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
   MessageSquare, 
-  FileSpreadsheet, 
-  LinkIcon, 
-  User, 
   Trash2,
   Menu,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Edit3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Chat {
-  id: string;
-  title: string;
-  timestamp: string;
-  searchType?: 'name' | 'linkedin' | 'csv';
-  searchQuery?: string;
-  founderScore?: number;
-}
+import RenameModal from './RenameModal';
+import { useChatContext } from '@/contexts/ChatContext';
+import { Chat } from '@/types';
 
 interface SidebarProps {
   chats: Chat[];
@@ -29,6 +21,7 @@ interface SidebarProps {
   onSelectChat: (chatId: string) => void;
   onNewChat: () => void;
   onDeleteChat: (chatId: string) => void;
+  onRenameChat: (chatId: string, newTitle: string) => void;
 }
 
 export default function Sidebar({ 
@@ -36,23 +29,40 @@ export default function Sidebar({
   currentChatId, 
   onSelectChat, 
   onNewChat,
-  onDeleteChat
+  onDeleteChat,
+  onRenameChat
 }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const { sidebarOpen: isOpen, setSidebarOpen: setIsOpen } = useChatContext();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  const [chatToRename, setChatToRename] = useState<{id: string, title: string} | null>(null);
+  const [isRenaming, setIsRenaming] = useState(false);
 
-  const getIconForSearchType = (searchType?: string) => {
-    switch (searchType) {
-      case 'name':
-        return User;
-      case 'linkedin':
-        return LinkIcon;
-      case 'csv':
-        return FileSpreadsheet;
-      default:
-        return MessageSquare;
+  const getIconForChat = () => {
+    return MessageSquare;
+  };
+
+  const handleRenameClick = (chat: Chat) => {
+    setChatToRename({ id: chat.id, title: chat.title });
+  };
+
+  const handleRenameSubmit = async (newTitle: string) => {
+    if (chatToRename) {
+      setIsRenaming(true);
+      try {
+        await onRenameChat(chatToRename.id, newTitle);
+        setChatToRename(null);
+      } catch (error) {
+        console.error('Failed to rename chat:', error);
+      } finally {
+        setIsRenaming(false);
+      }
     }
+  };
+
+  const handleRenameClose = () => {
+    setChatToRename(null);
+    setIsRenaming(false);
   };
 
 
@@ -71,6 +81,7 @@ export default function Sidebar({
 
       {/* Desktop Sidebar */}
       <motion.div
+        initial={false}
         className="hidden md:flex h-full bg-white/80 backdrop-blur-sm border-r border-gray-200/60 flex-shrink-0"
         animate={{
           width: isOpen ? "300px" : "60px",
@@ -121,7 +132,7 @@ export default function Sidebar({
               
               <button
                 onClick={onNewChat}
-                className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center justify-center p-1.5 flex-shrink-0"
+                className="bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center justify-center p-1.5 flex-shrink-0"
               >
                 <Plus className="w-3 h-3" />
               </button>
@@ -129,7 +140,7 @@ export default function Sidebar({
             
             <div className="overflow-y-auto flex-1 space-y-1">
               {chats.map((chat) => {
-                const IconComponent = getIconForSearchType(chat.searchType);
+                const IconComponent = getIconForChat();
                 
                 return (
                   <div
@@ -168,24 +179,24 @@ export default function Sidebar({
                         {chat.title}
                       </motion.h3>
                       
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {chat.founderScore && (
-                          <span className={cn(
-                            "text-xs font-medium px-2 py-1 rounded-full",
-                            currentChatId === chat.id
-                              ? 'bg-blue-200 text-blue-700'
-                              : 'bg-gray-200 text-gray-600'
-                          )}>
-                            {chat.founderScore}
-                          </span>
-                        )}
-                        
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleRenameClick(chat);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-400 hover:text-blue-500 transition-all"
+                          title="Rename chat"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
                         <button
                           onClick={(e) => { 
                             e.stopPropagation(); 
                             setChatToDelete(chat.id); 
                           }}
                           className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-400 hover:text-red-500 transition-all"
+                          title="Delete chat"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -239,7 +250,7 @@ export default function Sidebar({
                   onNewChat();
                   setIsMobileOpen(false);
                 }}
-                className="w-full py-3 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl transition-colors flex items-center justify-center gap-2 font-medium mb-6"
+                className="w-full py-3 px-4 bg-gray-500 hover:bg-gray-600 text-white rounded-2xl transition-colors flex items-center justify-center gap-2 font-medium mb-6"
               >
                 <Plus className="w-4 h-4" />
                 <span>New Analysis</span>
@@ -251,7 +262,7 @@ export default function Sidebar({
               
               <div className="overflow-y-auto space-y-2">
                 {chats.map((chat) => {
-                  const IconComponent = getIconForSearchType(chat.searchType);
+                  const IconComponent = getIconForChat();
                   
                   return (
                     <div
@@ -284,29 +295,31 @@ export default function Sidebar({
                           )}>
                             {chat.title}
                           </h3>
-                          
-                          {chat.founderScore && (
-                            <span className={cn(
-                              "text-xs font-medium px-2 py-1 rounded-full shrink-0",
-                              currentChatId === chat.id
-                                ? 'bg-blue-200 text-blue-700'
-                                : 'bg-gray-200 text-gray-600'
-                            )}>
-                              {chat.founderScore}
-                            </span>
-                          )}
                         </div>
                       </div>
                       
-                      <button
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          setChatToDelete(chat.id); 
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-opacity"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleRenameClick(chat);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-blue-500 transition-opacity"
+                          title="Rename chat"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setChatToDelete(chat.id); 
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-400 hover:text-red-500 transition-opacity"
+                          title="Delete chat"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -376,6 +389,15 @@ export default function Sidebar({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Rename Modal */}
+      <RenameModal
+        isOpen={!!chatToRename}
+        currentTitle={chatToRename?.title || ''}
+        onClose={handleRenameClose}
+        onRename={handleRenameSubmit}
+        isLoading={isRenaming}
+      />
     </>
   );
 }
