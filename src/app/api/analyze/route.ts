@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import Perplexity from '@perplexity-ai/perplexity_ai';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.CLAUDE_API_KEY,
 });
 
 const perplexity = new Perplexity({
@@ -20,7 +20,7 @@ function extractLinkedInUrls(text: string): string[] {
 async function extractAnalysisContext(text: string): Promise<string> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 100,
       messages: [{
         role: 'user',
@@ -64,7 +64,7 @@ Return only the most specific matching context phrase, or "general founder analy
 async function generateGodLevelQueries(profileData: Record<string, unknown>, analysisContext: string): Promise<string[]> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [{
         role: 'user',
@@ -272,6 +272,8 @@ export async function POST(request: NextRequest) {
     const analysisPrompt = `
 You are a legendary venture capitalist with 30+ years of experience, having backed unicorns like Google, Facebook, Uber, and Airbnb. You have an uncanny ability to spot billion-dollar founders before anyone else.
 
+USER REQUEST: "${textInput || 'Comprehensive founder analysis'}"
+
 ANALYSIS CONTEXT: ${finalAnalysisContext}
 
 FOUNDER PROFILE DATA:
@@ -348,7 +350,7 @@ Be ruthlessly honest. This analysis will determine million-dollar investment dec
     console.log('Analyzing profile with Claude...');
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
       messages: [
         {
@@ -485,6 +487,8 @@ Be ruthlessly honest. This analysis will determine million-dollar investment dec
           const profileAnalysisPrompt = `
 You are a legendary venture capitalist. Analyze this founder profile:
 
+USER REQUEST: "${textInput || 'Analyze this founder'}"
+
 ANALYSIS CONTEXT: ${finalAnalysisContext}
 
 FOUNDER PROFILE DATA:
@@ -498,7 +502,7 @@ Return as JSON: {"overallScore": <number>, "summary": "<brief summary>", "keyStr
 `;
 
           const profileResponse = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
+            model: 'claude-sonnet-4-20250514',
             max_tokens: 1000,
             messages: [{ role: 'user', content: profileAnalysisPrompt }]
           });

@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaClient } from '@prisma/client';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.CLAUDE_API_KEY,
 });
 
 const prisma = new PrismaClient();
@@ -119,23 +119,18 @@ Provide specific, actionable insights based on these analysis results. Reference
       systemPrompt = `You are a helpful AI assistant specializing in founder analysis and venture capital insights.`;
     }
 
-    // Prepare messages with system prompt
-    const enhancedMessages = [
-      { role: 'system', content: systemPrompt },
-      ...conversationMessages
-    ];
-
     console.log('Sending to Claude with analysis context:', {
       chatId,
       conversationContext,
       hasAnalysisContext: !!analysisContext,
-      messagesCount: enhancedMessages.length
+      messagesCount: conversationMessages.length
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1500, // Increased for more detailed responses
-      messages: enhancedMessages,
+      system: systemPrompt,
+      messages: conversationMessages,
     });
 
     const responseText = response.content[0].type === 'text' ? response.content[0].text : 'Response generation failed';

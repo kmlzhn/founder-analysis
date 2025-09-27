@@ -7,14 +7,14 @@ const client = new Perplexity({
 });
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.CLAUDE_API_KEY,
 });
 
 // AI-powered strategic query generation for Perplexity
 async function generateStrategicQueries(profileData: Record<string, unknown>, analysisType: string): Promise<string[]> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -72,7 +72,7 @@ Return ONLY a JSON array of 3 query strings:
 async function generatePerplexityAnalysis(profileData: Record<string, unknown>, searchResults: Record<string, unknown>[], analysisType: string): Promise<string> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1200,
       messages: [{
         role: 'user',
@@ -110,7 +110,7 @@ Be specific, reference the search results, and provide actionable VC insights.`
 async function generateIntelligentScore(profileData: Record<string, unknown>, searchResults: Record<string, unknown>[], analysis: string): Promise<{ score: number; reasoning: string }> {
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [{
         role: 'user',

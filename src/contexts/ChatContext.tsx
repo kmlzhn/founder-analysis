@@ -8,6 +8,12 @@ import {
   detectUserIntent 
 } from '@/utils/chat';
 
+// Helper function to extract LinkedIn URLs from text
+function extractLinkedInUrls(text: string): string[] {
+  const linkedinRegex = /https?:\/\/(?:www\.)?linkedin\.com\/in\/[a-zA-Z0-9-]+\/?/g;
+  return text.match(linkedinRegex) || [];
+}
+
 interface ChatContextType {
   chats: Chat[];
   currentChatId: string | null;
@@ -221,8 +227,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
     setIsLoading(true);
     
     try {
-      // Check if files are uploaded - if so, trigger analysis instead of regular chat
-      if (fileUrls.length > 0) {
+      // Check if files are uploaded OR LinkedIn URLs in text - if so, trigger analysis instead of regular chat
+      const linkedInUrls = extractLinkedInUrls(content);
+      if (fileUrls.length > 0 || linkedInUrls.length > 0) {
         console.log('Files detected, triggering analysis:', fileUrls);
         
         // Call analysis API with files
@@ -242,13 +249,13 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
         const analysisData = await analysisResponse.json();
         
-        // Format analysis results for display
-        let analysisMessage = `## Founder Analysis Results
-
-**Overall Score:** ${analysisData.overallScore || 'N/A'}/100
-
-**Analysis:**
-${analysisData.analysis || 'Analysis completed successfully.'}`;
+        // Format analysis results for display - let AI format naturally
+        let analysisMessage = analysisData.analysis || analysisData.rawAnalysis || 'Analysis completed successfully.';
+        
+        // Add score if available
+        if (analysisData.overallScore) {
+          analysisMessage = `**Overall Score:** ${analysisData.overallScore}/100\n\n${analysisMessage}`;
+        }
 
         // Add multiple profiles results if available
         if (analysisData.multipleProfiles && analysisData.multipleProfiles.analyses.length > 0) {

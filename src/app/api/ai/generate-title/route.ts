@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.CLAUDE_API_KEY,
 });
 
 export async function POST(request: NextRequest) {
+  let requestBody;
+  
   try {
-    const { message } = await request.json();
+    // Parse request body once and store it
+    requestBody = await request.json();
+    const { message } = requestBody;
 
     if (!message || typeof message !== 'string') {
       return NextResponse.json(
@@ -17,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 30,
       messages: [{
         role: 'user',
@@ -58,8 +62,8 @@ Return ONLY the title:`
   } catch (error) {
     console.error('AI title generation failed:', error);
     
-    // Fallback title generation
-    const { message } = await request.json();
+    // Use already parsed body or create fallback
+    const message = requestBody?.message;
     const fallbackTitle = message?.length < 30 
       ? `Analysis of ${message}` 
       : message?.split(' ').slice(0, 5).join(' ') + '...';
