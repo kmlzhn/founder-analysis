@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import Perplexity from '@perplexity-ai/perplexity_ai';
+// import Perplexity from '@perplexity-ai/perplexity_ai';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const anthropic = new Anthropic({
   apiKey: process.env.CLAUDE_API_KEY,
 });
 
-const perplexity = new Perplexity({
-  apiKey: process.env.PERPLEXITY_API_KEY,
-});
+// const perplexity = new Perplexity({
+//   apiKey: process.env.PERPLEXITY_API_KEY,
+// });
+
+const prisma = new PrismaClient();
 
 // Helper function to extract LinkedIn URLs from text
 function extractLinkedInUrls(text: string): string[] {
@@ -60,93 +63,180 @@ Return only the most specific matching context phrase, or "general founder analy
   }
 }
 
-// AI-powered god-level search query generation
-async function generateGodLevelQueries(profileData: Record<string, unknown>, analysisContext: string): Promise<string[]> {
+// AI-powered god-level search query generation - DISABLED
+// async function generateGodLevelQueries(profileData: Record<string, unknown>, analysisContext: string): Promise<string[]> {
+//   try {
+//     const response = await anthropic.messages.create({
+//       model: 'claude-sonnet-4-20250514',
+//       max_tokens: 300,
+//       messages: [{
+//         role: 'user',
+//         content: `You are a legendary VC researcher. Generate 5 highly specific search queries to research this founder for investment analysis.
+
+// FOUNDER PROFILE:
+// ${JSON.stringify(profileData, null, 2)}
+
+// ANALYSIS CONTEXT: ${analysisContext}
+
+// Generate 5 strategic search queries that will uncover:
+// 1. Track record and achievements
+// 2. Market reputation and credibility  
+// 3. Industry expertise and domain knowledge
+// 4. Competitive landscape and positioning
+// 5. Recent developments and market sentiment
+
+// Make queries specific, using exact names and companies when available. Focus on the analysis context (${analysisContext}).
+
+// Return ONLY a JSON array of 5 search query strings, nothing else:
+// ["query1", "query2", "query3", "query4", "query5"]`
+//       }]
+//     });
+
+//     const queryResponse = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]';
+    
+//     // Parse the JSON response
+//     try {
+//       // Strip markdown code blocks if present
+//       const cleanResponse = queryResponse.replace(/```json\n?|\n?```/g, '').trim();
+//       const queries = JSON.parse(cleanResponse);
+//       if (Array.isArray(queries) && queries.length > 0) {
+//         console.log('AI generated queries:', queries);
+//         return queries.slice(0, 5); // Ensure max 5 queries
+//       }
+//     } catch (parseError) {
+//       console.warn('Failed to parse AI query response:', parseError);
+//     }
+
+//     // Fallback to basic queries if AI fails
+//     const name = profileData.name || profileData.fullName;
+//     const company = profileData.companyName;
+    
+//     return [
+//       `"${name}" founder entrepreneur background`,
+//       `"${company}" startup funding valuation`,
+//       `${analysisContext} success patterns`,
+//       `"${name}" industry expertise achievements`,
+//       `"${company}" competitors market position`
+//     ].filter(q => !q.includes('undefined') && !q.includes('null'));
+
+//   } catch (error) {
+//     console.warn('AI query generation failed, using fallback:', error);
+    
+//     // Simple fallback
+//     const name = profileData.name || profileData.fullName || 'founder';
+//     const company = profileData.companyName || 'startup';
+    
+//     return [
+//       `"${name}" founder background`,
+//       `"${company}" startup analysis`,
+//       `${analysisContext} patterns`,
+//       `founder success metrics`,
+//       `startup market trends`
+//     ];
+//   }
+// }
+
+// Helper function to save profiles to database
+async function saveProfilesToDatabase(chatId: string, profiles: Record<string, unknown>[], linkedInUrls: string[], fileUrls: string[]) {
+  const savedProfiles = [];
+  const savedDataSources = [];
+  
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      messages: [{
-        role: 'user',
-        content: `You are a legendary VC researcher. Generate 5 highly specific search queries to research this founder for investment analysis.
-
-FOUNDER PROFILE:
-${JSON.stringify(profileData, null, 2)}
-
-ANALYSIS CONTEXT: ${analysisContext}
-
-Generate 5 strategic search queries that will uncover:
-1. Track record and achievements
-2. Market reputation and credibility  
-3. Industry expertise and domain knowledge
-4. Competitive landscape and positioning
-5. Recent developments and market sentiment
-
-Make queries specific, using exact names and companies when available. Focus on the analysis context (${analysisContext}).
-
-Return ONLY a JSON array of 5 search query strings, nothing else:
-["query1", "query2", "query3", "query4", "query5"]`
-      }]
-    });
-
-    const queryResponse = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]';
-    
-    // Parse the JSON response
-    try {
-      const queries = JSON.parse(queryResponse);
-      if (Array.isArray(queries) && queries.length > 0) {
-        console.log('AI generated queries:', queries);
-        return queries.slice(0, 5); // Ensure max 5 queries
+    // Create DataSource records for LinkedIn URLs
+    for (const url of linkedInUrls) {
+      const dataSource = await prisma.dataSource.create({
+        data: {
+          chatId,
+          type: 'LINKEDIN_URL',
+          source: url,
+          status: 'COMPLETED',
+          rawData: profiles.find(p => p.linkedinUrl === url || p.url === url) as Prisma.JsonObject || {}
+        }
+      });
+      savedDataSources.push(dataSource);
+      
+      // Create Profile record linked to DataSource
+      const profile = profiles.find(p => p.linkedinUrl === url || p.url === url);
+      if (profile) {
+        const savedProfile = await prisma.profile.create({
+          data: {
+            dataSourceId: dataSource.id,
+            name: String(profile.name || profile.fullName || ''),
+            linkedinUrl: String(profile.linkedinUrl || profile.url || ''),
+            profileData: profile as Prisma.JsonObject
+          }
+        });
+        savedProfiles.push(savedProfile);
       }
-    } catch (parseError) {
-      console.warn('Failed to parse AI query response:', parseError);
     }
-
-    // Fallback to basic queries if AI fails
-    const name = profileData.name || profileData.fullName;
-    const company = profileData.companyName;
     
-    return [
-      `"${name}" founder entrepreneur background`,
-      `"${company}" startup funding valuation`,
-      `${analysisContext} success patterns`,
-      `"${name}" industry expertise achievements`,
-      `"${company}" competitors market position`
-    ].filter(q => !q.includes('undefined') && !q.includes('null'));
-
+    // Create DataSource records for files
+    for (const fileUrl of fileUrls) {
+      const fileDataSource = await prisma.dataSource.create({
+        data: {
+          chatId,
+          type: fileUrl.includes('.csv') ? 'CSV_FILE' : 'EXCEL_FILE',
+          source: fileUrl,
+          status: 'COMPLETED',
+          rawData: { 
+            linkedInUrls: linkedInUrls,
+            profilesFound: profiles.length
+          }
+        }
+      });
+      savedDataSources.push(fileDataSource);
+    }
+    
+    console.log('Successfully saved to database:', {
+      profiles: savedProfiles.length,
+      dataSources: savedDataSources.length
+    });
+    
+    return { savedProfiles, savedDataSources };
   } catch (error) {
-    console.warn('AI query generation failed, using fallback:', error);
-    
-    // Simple fallback
-    const name = profileData.name || profileData.fullName || 'founder';
-    const company = profileData.companyName || 'startup';
-    
-    return [
-      `"${name}" founder background`,
-      `"${company}" startup analysis`,
-      `${analysisContext} patterns`,
-      `founder success metrics`,
-      `startup market trends`
-    ];
+    console.error('Database save error:', error);
+    throw error;
   }
 }
 
 // Helper function to process file content and extract URLs
 async function processFileContent(fileUrl: string): Promise<string[]> {
   try {
+    console.log('Calling /api/files/read for:', fileUrl);
+    
+    // Try to detect file type from URL or assume Excel for UploadThing URLs
+    let fileType = 'unknown';
+    if (fileUrl.includes('utfs.io') || fileUrl.includes('uploadthing')) {
+      // UploadThing URLs don't have extensions, assume Excel for now
+      fileType = 'xlsx';
+    } else if (fileUrl.endsWith('.csv')) {
+      fileType = 'csv';
+    } else if (fileUrl.endsWith('.xlsx') || fileUrl.endsWith('.xls')) {
+      fileType = 'xlsx';
+    } else if (fileUrl.endsWith('.txt')) {
+      fileType = 'txt';
+    }
+    
+    console.log('Detected file type:', fileType);
+    
     const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/files/read`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileUrl })
+      body: JSON.stringify({ fileUrl, fileType })
     });
     
     if (!response.ok) {
       console.warn(`Failed to read file ${fileUrl}:`, response.statusText);
+      const errorData = await response.json().catch(() => ({}));
+      console.warn('Error details:', errorData);
       return [];
     }
     
     const { content } = await response.json();
-    return extractLinkedInUrls(content);
+    console.log('File content preview:', content.substring(0, 200) + '...');
+    const urls = extractLinkedInUrls(content);
+    console.log('Extracted LinkedIn URLs:', urls);
+    return urls;
   } catch (error) {
     console.warn(`Error processing file ${fileUrl}:`, error);
     return [];
@@ -161,7 +251,8 @@ export async function POST(request: NextRequest) {
       analysisContext = 'general founder analysis',
       textInput,
       fileUrls = [],
-      enhanceWithPerplexity = true
+      // enhanceWithPerplexity = false, // Perplexity integration disabled
+      chatId // NEW: Accept chatId for database operations
     } = body;
 
     // Handle multiple input types
@@ -182,11 +273,14 @@ export async function POST(request: NextRequest) {
 
     // Process file URLs
     if (fileUrls.length > 0) {
-      console.log('Processing files for LinkedIn URLs...');
+      console.log('Processing files for LinkedIn URLs...', fileUrls);
       for (const fileUrl of fileUrls) {
+        console.log('Processing file:', fileUrl);
         const fileLinkedInUrls = await processFileContent(fileUrl);
+        console.log('LinkedIn URLs found in file:', fileLinkedInUrls);
         allLinkedInUrls.push(...fileLinkedInUrls);
       }
+      console.log('Total LinkedIn URLs found:', allLinkedInUrls);
     }
 
     // If we have LinkedIn URLs but no profileData, scrape them
@@ -217,57 +311,89 @@ export async function POST(request: NextRequest) {
       allProfiles = [profileData];
     }
 
-    // Validate we have profile data
-    if (!finalProfileData) {
+    // Validate we have profile data or LinkedIn URLs
+    if (!finalProfileData && allProfiles.length === 0 && allLinkedInUrls.length === 0) {
       return NextResponse.json(
         { error: 'profileData is required, or provide textInput/fileUrls with LinkedIn URLs' },
         { status: 400 }
       );
     }
 
-    // Enhanced context gathering with Perplexity
-    let enhancedContext = '';
-    if (enhanceWithPerplexity) {
-      console.log('Enhancing analysis with Perplexity research...');
-      
-      try {
-        const searchQueries = await generateGodLevelQueries(finalProfileData, finalAnalysisContext);
-
-        // Execute searches in parallel for better performance
-        const searchPromises = searchQueries.map(async (query) => {
-          try {
-            const search = await perplexity.search.create({
-              query,
-              max_results: 3,
-              max_tokens_per_page: 512
-            });
-            return { query, results: search.results };
-          } catch (error) {
-            console.warn(`Search failed for query "${query}":`, error);
-            return { query, results: [] };
-          }
-        });
-
-        const allSearchResults = await Promise.all(searchPromises);
-        
-        // Compile enhanced context
-        enhancedContext = allSearchResults
-          .filter(result => result.results.length > 0)
-          .map(result => {
-            const resultTexts = result.results.map((r) => {
-              const searchResult = r as { snippet?: string; content?: string };
-              return searchResult.snippet || searchResult.content || '';
-            });
-            return `SEARCH: ${result.query}\nRESULTS: ${resultTexts.join(' | ')}`;
-          })
-          .join('\n\n');
-
-        console.log('Perplexity research completed, context length:', enhancedContext.length);
-      } catch (perplexityError) {
-        console.warn('Perplexity enhancement failed:', perplexityError);
-        enhancedContext = 'Enhanced context unavailable due to search API limitations.';
-      }
+    // If we have LinkedIn URLs but scraping failed, provide helpful error
+    if (allLinkedInUrls.length > 0 && !finalProfileData && allProfiles.length === 0) {
+      return NextResponse.json(
+        { 
+          error: 'LinkedIn profile scraping failed. Please check the URLs or try again later.',
+          linkedInUrls: allLinkedInUrls,
+          suggestion: 'Verify the LinkedIn URLs are accessible and try again.'
+        },
+        { status: 400 }
+      );
     }
+
+    // Save profiles to database for future chat context
+    let savedProfiles: { id: string; name: string | null }[] = [];
+    let savedDataSources: { id: string; type: string }[] = [];
+    try {
+      if (allProfiles.length > 0 && chatId) {
+        const saveResult = await saveProfilesToDatabase(
+          chatId,
+          allProfiles, 
+          allLinkedInUrls, 
+          fileUrls
+        );
+        savedProfiles = saveResult.savedProfiles;
+        savedDataSources = saveResult.savedDataSources;
+        console.log('Successfully saved profiles to database:', savedProfiles.length);
+      }
+    } catch (dbError) {
+      console.warn('Failed to save profiles to database:', dbError);
+      // Continue with analysis even if DB save fails
+    }
+
+    // Enhanced context gathering with Perplexity - DISABLED
+    // let enhancedContext = '';
+    // if (enhanceWithPerplexity) {
+    //   console.log('Enhancing analysis with Perplexity research...');
+    //   
+    //   try {
+    //     const searchQueries = await generateGodLevelQueries(finalProfileData, finalAnalysisContext);
+
+    //     // Execute searches in parallel for better performance
+    //     const searchPromises = searchQueries.map(async (query) => {
+    //       try {
+    //         const search = await perplexity.search.create({
+    //           query,
+    //           max_results: 3,
+    //           max_tokens_per_page: 512
+    //         });
+    //         return { query, results: search.results };
+    //       } catch (error) {
+    //         console.warn(`Search failed for query "${query}":`, error);
+    //         return { query, results: [] };
+    //       }
+    //     });
+
+    //     const allSearchResults = await Promise.all(searchPromises);
+        
+    //     // Compile enhanced context
+    //     enhancedContext = allSearchResults
+    //       .filter(result => result.results.length > 0)
+    //       .map(result => {
+    //         const resultTexts = result.results.map((r) => {
+    //           const searchResult = r as { snippet?: string; content?: string };
+    //           return searchResult.snippet || searchResult.content || '';
+    //         });
+    //         return `SEARCH: ${result.query}\nRESULTS: ${resultTexts.join(' | ')}`;
+    //       })
+    //       .join('\n\n');
+
+    //     console.log('Perplexity research completed, context length:', enhancedContext.length);
+    //   } catch (perplexityError) {
+    //     console.warn('Perplexity enhancement failed:', perplexityError);
+    //     enhancedContext = 'Enhanced context unavailable due to search API limitations.';
+    //   }
+    // }
 
     const analysisPrompt = `
 You are a legendary venture capitalist with 30+ years of experience, having backed unicorns like Google, Facebook, Uber, and Airbnb. You have an uncanny ability to spot billion-dollar founders before anyone else.
@@ -279,8 +405,8 @@ ANALYSIS CONTEXT: ${finalAnalysisContext}
 FOUNDER PROFILE DATA:
 ${JSON.stringify(finalProfileData, null, 2)}
 
-ENHANCED MARKET RESEARCH & CONTEXT:
-${enhancedContext || 'No additional market context available.'}
+LINKEDIN PROFILE ANALYSIS:
+Analyzing based on LinkedIn profile data and AI knowledge base.
 
 ANALYSIS FRAMEWORK - Rate each category 1-100 with detailed reasoning:
 
@@ -454,34 +580,34 @@ Be ruthlessly honest. This analysis will determine million-dollar investment dec
       
       const analysisPromises = allProfiles.map(async (profile: Record<string, unknown>, index: number) => {
         try {
-          // Generate enhanced context for each profile
-          let profileEnhancedContext = '';
-          if (enhanceWithPerplexity) {
-            const profileQueries = await generateGodLevelQueries(profile, finalAnalysisContext);
-            const profileSearchPromises = profileQueries.slice(0, 3).map(async (query) => { // Limit to 3 queries per profile
-              try {
-                const search = await perplexity.search.create({
-                  query,
-                  max_results: 2,
-                  max_tokens_per_page: 256
-                });
-                return { query, results: search.results };
-              } catch {
-                return { query, results: [] };
-              }
-            });
-            const profileSearchResults = await Promise.all(profileSearchPromises);
-            profileEnhancedContext = profileSearchResults
-              .filter(result => result.results.length > 0)
-              .map(result => {
-                const resultTexts = result.results.map((r) => {
-                  const searchResult = r as { snippet?: string; content?: string };
-                  return searchResult.snippet || searchResult.content || '';
-                });
-                return `${result.query}: ${resultTexts.join(' | ')}`;
-              })
-              .join('\n');
-          }
+          // Generate enhanced context for each profile - DISABLED
+          // let profileEnhancedContext = '';
+          // if (enhanceWithPerplexity) {
+          //   const profileQueries = await generateGodLevelQueries(profile, finalAnalysisContext);
+          //   const profileSearchPromises = profileQueries.slice(0, 3).map(async (query) => { // Limit to 3 queries per profile
+          //     try {
+          //       const search = await perplexity.search.create({
+          //         query,
+          //         max_results: 2,
+          //         max_tokens_per_page: 256
+          //       });
+          //       return { query, results: search.results };
+          //     } catch {
+          //       return { query, results: [] };
+          //     }
+          //   });
+          //   const profileSearchResults = await Promise.all(profileSearchPromises);
+          //   profileEnhancedContext = profileSearchResults
+          //     .filter(result => result.results.length > 0)
+          //     .map(result => {
+          //       const resultTexts = result.results.map((r) => {
+          //         const searchResult = r as { snippet?: string; content?: string };
+          //         return searchResult.snippet || searchResult.content || '';
+          //       });
+          //       return `${result.query}: ${resultTexts.join(' | ')}`;
+          //     })
+          //     .join('\n');
+          // }
 
           // Create analysis prompt for this profile
           const profileAnalysisPrompt = `
@@ -494,8 +620,8 @@ ANALYSIS CONTEXT: ${finalAnalysisContext}
 FOUNDER PROFILE DATA:
 ${JSON.stringify(profile, null, 2)}
 
-MARKET RESEARCH:
-${profileEnhancedContext || 'No additional context available.'}
+LINKEDIN PROFILE DATA:
+Analyzing based on LinkedIn profile information.
 
 Provide a concise analysis with an overall score (1-100) and key insights.
 Return as JSON: {"overallScore": <number>, "summary": "<brief summary>", "keyStrengths": ["<strength1>", "<strength2>"], "concerns": ["<concern1>", "<concern2>"]}
@@ -571,10 +697,20 @@ Return as JSON: {"overallScore": <number>, "summary": "<brief summary>", "keyStr
         linkedInUrlsFound: allLinkedInUrls.length,
         filesProcessed: fileUrls.length,
         profilesAnalyzed: allProfiles.length,
-        perplexityEnhanced: enhanceWithPerplexity && enhancedContext.length > 0,
+        perplexityEnhanced: false, // Perplexity integration disabled
         analysisContext: finalAnalysisContext,
         profileSource: profileData ? 'provided' : 'scraped'
       },
+      // NEW: Database persistence info
+      databaseInfo: {
+        profilesSaved: savedProfiles.length,
+        dataSourcesCreated: savedDataSources.length,
+        primaryProfileId: savedProfiles[0]?.id || null,
+        allProfileIds: savedProfiles.map(p => p.id)
+      },
+      // ADD: LinkedIn profile data for chat context
+      linkedInProfiles: allProfiles,
+      primaryProfile: finalProfileData,
       // Legacy fields for backward compatibility
       score: structuredAnalysis.overallScore,
       rawAnalysis: analysisText
@@ -595,13 +731,13 @@ Return as JSON: {"overallScore": <number>, "summary": "<brief summary>", "keyStr
 
 export async function GET() {
   return NextResponse.json({
-    message: 'God-Level VC Analysis API with Perplexity Enhancement',
+    message: 'God-Level VC Analysis API with LinkedIn + Claude Analysis',
     endpoint: '/api/analyze',
     method: 'POST',
     capabilities: [
       'Text + File simultaneous processing',
       'LinkedIn URL extraction and scraping',
-      'Perplexity-enhanced market research',
+      'LinkedIn profile analysis with Claude AI',
       'Context-aware analysis',
       'Structured JSON output with UI components'
     ],
@@ -610,7 +746,7 @@ export async function GET() {
       analysisContext: 'Optional: "young founders", "B2B SaaS", "technical founders", etc.',
       textInput: 'Text containing LinkedIn URLs and analysis context',
       fileUrls: 'Array of file URLs (CSV/Excel) containing LinkedIn URLs',
-      enhanceWithPerplexity: 'Boolean: Enable market research enhancement (default: true)'
+      enhanceWithPerplexity: 'Boolean: Enable market research enhancement (DISABLED - always false)'
     },
     responseFormat: {
       analysis: 'Structured JSON analysis with 13+ fields',
@@ -625,7 +761,7 @@ export async function GET() {
       },
       textWithUrls: {
         textInput: 'Analyze these young B2B SaaS founders: https://linkedin.com/in/user1, https://linkedin.com/in/user2',
-        enhanceWithPerplexity: true
+        enhanceWithPerplexity: false
       },
       filesAndText: {
         textInput: 'Analyze technical founders in this list',
@@ -635,7 +771,7 @@ export async function GET() {
       comprehensive: {
         profileData: { name: 'Jane Smith', linkedinUrl: '...', companyName: '...' },
         analysisContext: 'young B2B SaaS founders',
-        enhanceWithPerplexity: true
+        enhanceWithPerplexity: false
       }
     }
   });

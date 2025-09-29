@@ -81,7 +81,7 @@ const getFileIcon = (fileType: string) => {
 
 export default function ChatInput({ 
   onSendMessage, 
-  isLoading 
+  isLoading
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
@@ -96,7 +96,7 @@ export default function ChatInput({
     if ((value.trim() || selectedFiles.length > 0) && !isLoading && !isUploading) {
       let fileUrls: string[] = [];
       
-      // Upload files only when sending message
+      // Upload files first if any (but don't block message display)
       if (selectedFiles.length > 0) {
         setIsUploading(true);
         try {
@@ -111,6 +111,7 @@ export default function ChatInput({
         setIsUploading(false);
       }
       
+      // Send message with real file URLs (or empty array)
       onSendMessage(value, fileUrls);
       setValue("");
       setSelectedFiles([]);
@@ -152,7 +153,7 @@ export default function ChatInput({
   return (
     <>
       <div className="p-6">
-        <div className="relative max-w-2xl border rounded-[22px] border-gray-200/60 p-1 w-full mx-auto shadow-sm bg-white/80 backdrop-blur-sm">
+        <div className="relative max-w-3xl border rounded-[22px] border-gray-200/60 p-1 w-full mx-auto shadow-sm bg-white/80 backdrop-blur-sm">
           <div className="relative rounded-2xl border border-gray-100 bg-transparent flex flex-col">
             {/* File List */}
             {selectedFiles.length > 0 && (

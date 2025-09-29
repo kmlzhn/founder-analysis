@@ -19,6 +19,7 @@ export default function ChatPage() {
     currentChat,
     isLoading,
     isChatsLoaded,
+    analysisProgress,
     handleSelectChat,
     handleNewChat,
     handleDeleteChat,
@@ -76,6 +77,7 @@ export default function ChatPage() {
       <ChatContainer
         messages={currentChat?.messages || []}
         isLoading={isLoading}
+        analysisProgress={analysisProgress}
       />
       
       <div className="absolute bottom-0 left-0 right-0">

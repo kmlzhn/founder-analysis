@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { chatId, role, content } = body;
+    const { chatId, role, content, attachments } = body;
 
     if (!chatId || !role || !content) {
       return NextResponse.json(
@@ -24,12 +24,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Create message
+    const messageData = {
+      chatId,
+      role: role.toUpperCase() as 'USER' | 'ASSISTANT',
+      content,
+      ...(attachments && { attachments })
+    };
+    
     const message = await prisma.message.create({
-      data: {
-        chatId,
-        role: role.toUpperCase() as 'USER' | 'ASSISTANT',
-        content
-      }
+      data: messageData
     });
 
     // Update chat's updatedAt timestamp
@@ -43,6 +46,7 @@ export async function POST(request: NextRequest) {
       id: message.id,
       role: message.role,
       content: message.content,
+      attachments: (message as Record<string, unknown>).attachments as unknown[] || undefined,
       createdAt: message.createdAt.toISOString()
     };
 
@@ -86,6 +90,7 @@ export async function GET(request: NextRequest) {
       id: msg.id,
       role: msg.role,
       content: msg.content,
+      attachments: (msg as Record<string, unknown>).attachments as unknown[] || undefined,
       createdAt: msg.createdAt.toISOString()
     }));
 

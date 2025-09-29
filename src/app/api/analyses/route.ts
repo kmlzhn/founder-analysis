@@ -3,7 +3,7 @@ import { prisma } from '@/utils/prisma';
 
 export async function POST(request: NextRequest) {
   try {
-    const { chatId, analysisData } = await request.json();
+    const { chatId, analysisData, profileId, profileIds } = await request.json();
 
     if (!chatId || !analysisData) {
       return NextResponse.json(
@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     const analysis = await prisma.analysis.create({
       data: {
         chatId,
+        profileId: profileId || null, // Primary profile for single analysis
         type: multipleProfiles ? 'BATCH_ANALYSIS' : 'FOUNDER_POTENTIAL',
         provider: 'claude',
         
@@ -45,14 +46,21 @@ export async function POST(request: NextRequest) {
         analysisContext: processingInfo.analysisContext || null,
         profileSource: processingInfo.profileSource || null,
         
-        // Store full analysis data
-        detailedResults: analysisData,
+        // Store full analysis data including profile IDs and LinkedIn data
+        detailedResults: {
+          ...analysisData,
+          profileIds: profileIds || [],
+          databaseInfo: analysisData.databaseInfo || {},
+          linkedInProfiles: analysisData.linkedInProfiles || [],
+          primaryProfile: analysisData.primaryProfile || null
+        },
       },
     });
 
     return NextResponse.json({
       success: true,
       analysis,
+      profilesLinked: profileIds?.length || (profileId ? 1 : 0)
     });
 
   } catch (error) {

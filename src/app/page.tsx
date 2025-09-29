@@ -4,6 +4,7 @@ import { useChatContext } from '@/contexts/ChatContext';
 import ChatLayout from '@/components/ChatLayout';
 import ChatContainer from '@/components/ChatContainer';
 import ChatInput from '@/components/ChatInput';
+import WelcomeScreen from '@/components/WelcomeScreen';
 
 export default function Home() {
   const {
@@ -11,6 +12,7 @@ export default function Home() {
     currentChatId,
     currentChat,
     isLoading,
+    analysisProgress,
     handleSelectChat,
     handleNewChat,
     handleDeleteChat,
@@ -21,6 +23,9 @@ export default function Home() {
   // Don't auto-redirect - let user manually select chats or start typing
   
 
+  // Check if we should show welcome screen (no current chat or empty chat)
+  const showWelcomeScreen = !currentChatId || !currentChat || currentChat.messages.length === 0;
+
   return (
     <ChatLayout
       chats={chats}
@@ -30,17 +35,27 @@ export default function Home() {
       onDeleteChat={handleDeleteChat}
       onRenameChat={handleRenameChat}
     >
-      <ChatContainer
-        messages={currentChat?.messages || []}
-        isLoading={isLoading}
-      />
-      
-      <div className="absolute bottom-0 left-0 right-0">
-        <ChatInput
+      {showWelcomeScreen ? (
+        <WelcomeScreen 
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
         />
-      </div>
+      ) : (
+        <>
+          <ChatContainer
+            messages={currentChat?.messages || []}
+            isLoading={isLoading}
+            analysisProgress={analysisProgress}
+          />
+          
+          <div className="absolute bottom-0 left-0 right-0">
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+            />
+          </div>
+        </>
+      )}
     </ChatLayout>
   );
 }

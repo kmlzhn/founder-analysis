@@ -7,6 +7,7 @@ import {
   generateSmartTitle,
   detectUserIntent 
 } from '@/utils/chat';
+import { createFileAttachments } from '@/utils/fileUtils';
 
 // Helper function to extract LinkedIn URLs from text
 function extractLinkedInUrls(text: string): string[] {
@@ -21,6 +22,10 @@ interface ChatContextType {
   isLoading: boolean;
   isChatsLoaded: boolean;
   sidebarOpen: boolean;
+  analysisProgress: {
+    isActive: boolean;
+    stage: string;
+  };
   setSidebarOpen: (open: boolean) => void;
   handleNewChat: () => void;
   handleSelectChat: (chatId: string) => void;
@@ -51,6 +56,13 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isChatsLoaded, setIsChatsLoaded] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [analysisProgress, setAnalysisProgress] = useState<{
+    isActive: boolean;
+    stage: string;
+  }>({
+    isActive: false,
+    stage: ''
+  });
 
   // Load chats from API on initial render
   useEffect(() => {
@@ -153,22 +165,35 @@ export function ChatProvider({ children }: ChatProviderProps) {
   };
 
   // Handle text message with optional file URLs
+
   const handleSendMessage = async (content: string, fileUrls: string[] = []) => {
     let targetChatId = currentChatId;
     let currentChats = chats;
     
+    // Generate temporary message ID for optimistic update
+    const tempMessageId = `temp-${Date.now()}`;
+    const optimisticMessage = {
+      id: tempMessageId,
+      role: 'USER' as const,
+      content,
+      attachments: fileUrls.length > 0 ? createFileAttachments(fileUrls) : undefined,
+      createdAt: new Date().toISOString()
+    };
+    
     // Create a new chat if there isn't one
     if (!targetChatId) {
       try {
-        // Generate smart title with AI
-        const chatTitle = await generateSmartTitle(content);
+        // Use immediate fallback title for instant UI update
+        const tempTitle = content.length < 30 
+          ? `Analysis of ${content}` 
+          : content.split(' ').slice(0, 5).join(' ') + '...';
         
-        // Create chat in database first
+        // Create chat in database with temp title
         const response = await fetch('/api/chats', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title: chatTitle
+            title: tempTitle
           })
         });
         
@@ -177,123 +202,231 @@ export function ChatProvider({ children }: ChatProviderProps) {
         }
         
         const { chat: newChat } = await response.json();
-        currentChats = [newChat, ...chats];
+        
+        // Add optimistic message to new chat immediately
+        const newChatWithMessage = {
+          ...newChat,
+          messages: [optimisticMessage]
+        };
+        
+        currentChats = [newChatWithMessage, ...chats];
         setChats(currentChats);
         setCurrentChatId(newChat.id);
         targetChatId = newChat.id;
         router.push(`/chat/${newChat.id}`);
+        
+        // Generate AI title in background (non-blocking)
+        generateSmartTitle(content).then(aiTitle => {
+          if (aiTitle && aiTitle !== tempTitle) {
+            // Update title in background
+            fetch(`/api/chats/${newChat.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ title: aiTitle })
+            }).then(() => {
+              // Update local state with new title
+              setChats(prevChats => prevChats.map(chat => 
+                chat.id === newChat.id ? { ...chat, title: aiTitle } : chat
+              ));
+            }).catch(error => {
+              console.warn('Failed to update chat title:', error);
+            });
+          }
+        }).catch(error => {
+          console.warn('AI title generation failed:', error);
+        });
       } catch (error) {
         console.error('Failed to create new chat:', error);
         return; // Exit if we can't create a chat
       }
-    }
-    
-    // Add user message to database
-    try {
-      const userMessageResponse = await fetch('/api/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: targetChatId,
-          role: 'USER',
-          content
-        })
-      });
-      
-      if (!userMessageResponse.ok) {
-        throw new Error(`Failed to save user message: ${userMessageResponse.statusText}`);
-      }
-      
-      const { message: userMessage } = await userMessageResponse.json();
-      
-      // Update local state with user message
+    } else {
+      // Add optimistic message to existing chat immediately
       const updatedChats = currentChats.map(chat => {
         if (chat.id === targetChatId) {
           return {
             ...chat,
-            messages: [...chat.messages, userMessage],
+            messages: [...chat.messages, optimisticMessage],
           };
         }
         return chat;
       });
       
       setChats(updatedChats);
-    } catch (error) {
-      console.error('Failed to save user message:', error);
-      return; // Exit if we can't save the message
+      currentChats = updatedChats;
     }
+    
+    // Save user message to database in background (don't wait)
+    const saveMessageToDatabase = async () => {
+      try {
+        const userMessageResponse = await fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId: targetChatId,
+            role: 'USER',
+            content,
+            attachments: fileUrls.length > 0 ? createFileAttachments(fileUrls) : undefined
+          })
+        });
+        
+        if (!userMessageResponse.ok) {
+          throw new Error(`Failed to save user message: ${userMessageResponse.statusText}`);
+        }
+        
+        const { message: realMessage } = await userMessageResponse.json();
+        
+        // Replace temporary message with real message from database
+        setChats(prevChats => prevChats.map(chat => {
+          if (chat.id === targetChatId) {
+            return {
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === tempMessageId ? realMessage : msg
+              ),
+            };
+          }
+          return chat;
+        }));
+        
+        console.log('Message saved to database successfully');
+      } catch (error) {
+        console.error('Failed to save user message:', error);
+        
+        // Error recovery: Mark message as failed and show retry option
+        setChats(prevChats => prevChats.map(chat => {
+          if (chat.id === targetChatId) {
+            return {
+              ...chat,
+              messages: chat.messages.map(msg => 
+                msg.id === tempMessageId ? { ...msg, failed: true } : msg
+              ),
+            };
+          }
+          return chat;
+        }));
+      }
+    };
+    
+    // Start background save (don't await)
+    saveMessageToDatabase();
     
     // Start loading
     setIsLoading(true);
     
     try {
-      // Check if files are uploaded OR LinkedIn URLs in text - if so, trigger analysis instead of regular chat
+      // Check if files are uploaded OR LinkedIn URLs in text - if so, trigger analysis in background
       const linkedInUrls = extractLinkedInUrls(content);
       if (fileUrls.length > 0 || linkedInUrls.length > 0) {
-        console.log('Files detected, triggering analysis:', fileUrls);
+        console.log('Files detected, starting background analysis:', fileUrls);
+        
+        // Just show loading state, no extra messages
+        
+        // Start analysis in background (non-blocking)
+        (async () => {
+          try {
+            // Start progress simulation
+            const simulateAnalysisProgress = () => {
+              const stages = [
+                { stage: 'Extracting context', duration: 2000 },
+                { stage: 'Scraping LinkedIn profiles', duration: 8000 },
+                { stage: 'Gathering market research', duration: 15000 },
+                { stage: 'Running AI analysis', duration: 25000 },
+                { stage: 'Finalizing results', duration: 2000 }
+              ];
+
+              let currentStage = 0;
+              const updateStage = () => {
+                if (currentStage < stages.length) {
+                  const stage = stages[currentStage];
+                  setAnalysisProgress({
+                    isActive: true,
+                    stage: stage.stage
+                  });
+                  
+                  setTimeout(() => {
+                    currentStage++;
+                    updateStage();
+                  }, stage.duration);
+                } else {
+                  setAnalysisProgress({ isActive: false, stage: '' });
+                }
+              };
+              
+              updateStage();
+            };
+            
+            simulateAnalysisProgress();
         
         // Call analysis API with files
+        const requestBody = {
+          textInput: content,
+          fileUrls: fileUrls,
+          enhanceWithPerplexity: false, // Perplexity integration disabled
+          chatId: currentChatId // NEW: Pass chat ID for database operations
+        };
+        
+        console.log('Sending analysis request:', requestBody);
+        console.log('LinkedIn URLs found:', linkedInUrls);
+        
         const analysisResponse = await fetch('/api/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            textInput: content,
-            fileUrls: fileUrls,
-            enhanceWithPerplexity: true
-          })
+          body: JSON.stringify(requestBody)
         });
 
         if (!analysisResponse.ok) {
-          throw new Error(`Analysis API failed: ${analysisResponse.statusText}`);
+          const errorData = await analysisResponse.json().catch(() => ({}));
+          console.error('Analysis API error:', errorData);
+          throw new Error(`Analysis API failed: ${analysisResponse.statusText}. ${errorData.error || ''}`);
         }
 
         const analysisData = await analysisResponse.json();
         
-        // Format analysis results for display - let AI format naturally
-        let analysisMessage = analysisData.analysis || analysisData.rawAnalysis || 'Analysis completed successfully.';
+        console.log('Analysis data received:', analysisData);
         
-        // Add score if available
-        if (analysisData.overallScore) {
-          analysisMessage = `**Overall Score:** ${analysisData.overallScore}/100\n\n${analysisMessage}`;
-        }
+        // Embed structured analysis data for custom card rendering
+        let analysisMessage;
+        try {
+          const jsonString = JSON.stringify(analysisData);
+          analysisMessage = `<!--ANALYSIS_DATA:${jsonString}-->
 
-        // Add multiple profiles results if available
-        if (analysisData.multipleProfiles && analysisData.multipleProfiles.analyses.length > 0) {
-          analysisMessage += `
+**Analysis Complete!** 
 
-## Multiple Profiles Analysis (${analysisData.multipleProfiles.totalProfiles} profiles)
+The analysis has been processed and is ready for review. Click to expand the detailed analysis card below.
 
-**Average Score:** ${analysisData.multipleProfiles.averageScore}/100
-
-`;
-          
-          analysisData.multipleProfiles.analyses.forEach((profileAnalysis: Record<string, unknown>) => {
-            const analysis = profileAnalysis.analysis as Record<string, unknown>;
-            analysisMessage += `### ${profileAnalysis.profileName}
-**Score:** ${analysis.overallScore}/100
-**Summary:** ${analysis.summary}
-**Strengths:** ${Array.isArray(analysis.keyStrengths) ? analysis.keyStrengths.join(', ') : 'N/A'}
-**Concerns:** ${Array.isArray(analysis.concerns) ? analysis.concerns.join(', ') : 'N/A'}
-
-`;
-          });
-        }
-
-        analysisMessage += `
 **Processing Info:**
 - Files processed: ${analysisData.processingInfo?.filesProcessed || 0}
 - LinkedIn profiles found: ${analysisData.processingInfo?.linkedInUrlsFound || 0}
 - Profiles analyzed: ${analysisData.processingInfo?.profilesAnalyzed || 1}
-- Perplexity enhanced: ${analysisData.processingInfo?.perplexityEnhanced ? 'Yes' : 'No'}`;
+- Enhanced analysis: ${analysisData.processingInfo?.perplexityEnhanced ? 'Yes' : 'No'}`;
+        } catch (error) {
+          console.error('Failed to stringify analysis data:', error);
+          // Fallback to simple message
+          analysisMessage = `**Analysis Complete!** 
 
-        // Save structured analysis to database
+Score: ${analysisData.analysis?.overallScore || analysisData.score || 'N/A'}/100
+
+**Processing Info:**
+- Files processed: ${analysisData.processingInfo?.filesProcessed || 0}
+- LinkedIn profiles found: ${analysisData.processingInfo?.linkedInUrlsFound || 0}
+- Profiles analyzed: ${analysisData.processingInfo?.profilesAnalyzed || 1}
+- Enhanced analysis: ${analysisData.processingInfo?.perplexityEnhanced ? 'Yes' : 'No'}`;
+        }
+
+        // Save structured analysis to database with proper profile linking
+        const saveAnalysisData = {
+          chatId: targetChatId,
+          analysisData: analysisData,
+          // Handle both single and multiple profile scenarios
+          profileId: analysisData.databaseInfo?.primaryProfileId || null,
+          profileIds: analysisData.databaseInfo?.allProfileIds || [],
+          isMultiProfile: analysisData.multipleProfiles !== null
+        };
+
         const saveAnalysisResponse = await fetch('/api/analyses', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatId: targetChatId,
-            analysisData: analysisData
-          })
+          body: JSON.stringify(saveAnalysisData)
         });
 
         if (!saveAnalysisResponse.ok) {
@@ -317,18 +450,42 @@ export function ChatProvider({ children }: ChatProviderProps) {
         
         const { message: aiMessage } = await aiMessageResponse.json();
         
-        // Update chat with analysis message
-        setChats(prevChats => prevChats.map(chat => {
-          if (chat.id === targetChatId) {
-            return {
-              ...chat,
-              messages: [...chat.messages, aiMessage],
+            // Update chat with analysis message
+            setChats(prevChats => prevChats.map(chat => {
+              if (chat.id === targetChatId) {
+                return {
+                  ...chat,
+                  messages: [...chat.messages, aiMessage],
+                };
+              }
+              return chat;
+            }));
+            
+          } catch (error) {
+            console.error('Background analysis failed:', error);
+            
+            // Add error message to chat
+            const errorMessage = {
+              id: `analysis-error-${Date.now()}`,
+              role: 'ASSISTANT' as const,
+              content: `❌ **Analysis Failed**\n\nSorry, the analysis encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease try again or contact support if the issue persists.`,
+              createdAt: new Date().toISOString()
             };
+            
+            setChats(prevChats => prevChats.map(chat => {
+              if (chat.id === targetChatId) {
+                return {
+                  ...chat,
+                  messages: [...chat.messages, errorMessage]
+                };
+              }
+              return chat;
+            }));
           }
-          return chat;
-        }));
+        })();
         
-        return; // Exit early since we handled the analysis
+        // Don't continue with regular chat flow - analysis will handle the response
+        return;
       }
 
       // Regular chat flow - detect user intent with AI
@@ -444,13 +601,14 @@ export function ChatProvider({ children }: ChatProviderProps) {
     isLoading,
     isChatsLoaded,
     sidebarOpen,
+    analysisProgress,
     setSidebarOpen,
     handleNewChat,
     handleSelectChat,
-    handleDeleteChat,
-    handleRenameChat,
-    handleSendMessage,
-    setCurrentChatId,
+      handleDeleteChat,
+      handleRenameChat,
+      handleSendMessage,
+      setCurrentChatId,
   };
 
   return (

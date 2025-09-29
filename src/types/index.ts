@@ -1,7 +1,16 @@
+export interface FileAttachment {
+  id: string;
+  name: string;
+  url: string;
+  type: string; // 'csv', 'xlsx', 'txt', etc.
+  size?: number;
+}
+
 export interface Message {
   id: string;
   role: 'USER' | 'ASSISTANT';
   content: string;
+  attachments?: FileAttachment[];
   createdAt: string;
 }
 

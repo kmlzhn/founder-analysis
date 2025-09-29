@@ -40,12 +40,13 @@ model Chat {
 
 // Message model - chat messages
 model Message {
-  id        String      @id @default(cuid())
-  chatId    String
-  chat      Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  role      MessageRole
-  content   String      @db.Text
-  createdAt DateTime    @default(now())
+  id          String      @id @default(cuid())
+  chatId      String
+  chat        Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  role        MessageRole
+  content     String      @db.Text
+  attachments Json?       // File attachments as JSON array
+  createdAt   DateTime    @default(now())
 }
 
 enum MessageRole {
